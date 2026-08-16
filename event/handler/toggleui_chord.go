@@ -6,8 +6,6 @@ import (
 
 	"github.com/Alia5/SISR/cmd"
 	"github.com/Alia5/SISR/sdl"
-	"github.com/Alia5/SISR/sdl/extras"
-	"github.com/Alia5/SISR/webview"
 )
 
 var (
@@ -163,44 +161,9 @@ func setShortcutModifierState(key sdl.KeyCode, pressed bool) {
 	}
 }
 
+// toggleUI runs cmd.ToggleUI on its own goroutine: this is called from the
+// same goroutine that drives the window dispatcher's event loop, and
+// cmd.ToggleUI blocks until the dispatcher processes it.
 func toggleUI(ctx context.Context, c *cmd.SISRContext) {
-	go func() {
-
-		_, err := cmd.ScheduleWindowDispatch(ctx, c.WindowDispatcher, func(w *sdl.Window, wv webview.WebView) bool {
-			c.Config.Lock()
-			fullscreen := c.Config.Fullscreen
-			kbmEnabled := c.Config.KeyboardMouseEmulation
-			c.Config.Unlock()
-			windowHidden := w.GetWindowFlags()&sdl.WindowFlagHidden != 0
-			uiVisible := wv.Visible() && !windowHidden
-			if uiVisible {
-				if !kbmEnabled {
-					err := extras.SetCursorHitTest(w, false)
-					if err != nil {
-						slog.Error("Failed setting window cursor hittest", "error", err)
-					}
-				}
-				if !fullscreen {
-					w.HideWindow()
-				}
-				wv.SetVisible(false)
-				return false
-			} else {
-				w.ShowWindow()
-				wv.Eval("window.invalidateAll();")
-				_ = c.WindowDispatcher.Schedule(func(w *sdl.Window, wv webview.WebView) any {
-					wv.SetVisible(true)
-					return nil
-				})
-				err := extras.SetCursorHitTest(w, true)
-				if err != nil {
-					slog.Error("Failed setting window cursor hittest", "error", err)
-				}
-				return true
-			}
-		})
-		if err != nil {
-			slog.Error("Failed to toggle UI visibility", "error", err)
-		}
-	}()
+	go cmd.ToggleUI(ctx, c)
 }

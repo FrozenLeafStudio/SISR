@@ -167,42 +167,7 @@ func (t *tray) handleUpdateAvailableClick(ctx context.Context) {
 }
 
 func (t *tray) handleToggleUI(ctx context.Context) {
-	_, err := cmd.ScheduleWindowDispatch(ctx, t.WindowDispatcher, func(w *sdl.Window, wv webview.WebView) bool {
-		t.Config.Lock()
-		fullscreen := t.Config.Fullscreen
-		kbmEnabled := t.Config.KeyboardMouseEmulation
-		t.Config.Unlock()
-		windowHidden := w.GetWindowFlags()&sdl.WindowFlagHidden != 0
-		uiVisible := wv.Visible() && !windowHidden
-		if uiVisible {
-			if !kbmEnabled {
-				err := extras.SetCursorHitTest(w, false)
-				if err != nil {
-					slog.Error("Failed setting window cursor hittest", "error", err)
-				}
-			}
-			if !fullscreen {
-				w.HideWindow()
-			}
-			wv.SetVisible(false)
-			return false
-		} else {
-			w.ShowWindow()
-			wv.Eval("window.invalidateAll();")
-			_ = t.WindowDispatcher.Schedule(func(w *sdl.Window, wv webview.WebView) any {
-				wv.SetVisible(true)
-				return nil
-			})
-			err := extras.SetCursorHitTest(w, true)
-			if err != nil {
-				slog.Error("Failed setting window cursor hittest", "error", err)
-			}
-			return true
-		}
-	})
-	if err != nil {
-		slog.Error("Failed to toggle UI visibility", "error", err)
-	}
+	cmd.ToggleUI(ctx, t.SISRContext)
 }
 
 func (t *tray) handleToggleOverlay(ctx context.Context) {
