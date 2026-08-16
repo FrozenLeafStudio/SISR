@@ -111,10 +111,6 @@ jobs:
             - name: Setup just
               uses: extractions/setup-just@v3
 
-            - name: Install goversioninfo
-              run: |
-                  go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.7.0
-
             - name: Version
               id: version
               shell: bash

@@ -33,7 +33,7 @@ run-dev *args: build
 	{{ if os_family() == "windows" { "$env:DEV='1'; & './" + binary_name + exe_ext + "'" } else { "DEV=1 './" + binary_name + exe_ext + "'" } }} --api.frontend-address=localhost:5173 --api.listen-address=localhost:5746 --api.cors-origins=https://steamloopback.host,http://steamloopback.host,http://localhost:5173 {{ args }}
 
 win-resource:
-	goversioninfo -64 -o cmd/sisr/resource.syso versioninfo.json
+	go tool goversioninfo -64 -o cmd/sisr/resource.syso versioninfo.json
 
 [arg("type", long="type", help="Build type (Debug/Release)")]
 build-sdl type="Debug":
