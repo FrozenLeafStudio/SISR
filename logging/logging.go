@@ -34,9 +34,9 @@ func SetupLogger(logLevel, logFile string) (*slog.Logger, []io.Closer, error) {
 	level := ParseLevel(logLevel)
 	var handlers []slog.Handler
 
-	stdoutHandler := &colorHandler{w: os.Stdout, level: level}
+	stdoutHandler := &colorHandler{w: os.Stdout, level: level, color: useColor(os.Stdout)}
 	handlers = append(handlers, LevelFilter{pass: func(l slog.Level) bool { return l < slog.LevelError }, h: stdoutHandler})
-	stderrHandler := &colorHandler{w: os.Stderr, level: slog.LevelError}
+	stderrHandler := &colorHandler{w: os.Stderr, level: slog.LevelError, color: useColor(os.Stderr)}
 	handlers = append(handlers, LevelFilter{pass: func(l slog.Level) bool { return l >= slog.LevelError }, h: stderrHandler})
 	var closeFiles []io.Closer
 	if logFile != "" {
@@ -112,56 +112,92 @@ func (f LevelFilter) WithGroup(name string) slog.Handler {
 	return LevelFilter{pass: f.pass, h: f.h.WithGroup(name)}
 }
 
+const (
+	ansiReset  = "\033[0m"
+	ansiDim    = "\033[90m"
+	ansiRed    = "\033[31m"
+	ansiYellow = "\033[33m"
+	ansiGreen  = "\033[32m"
+	ansiBlue   = "\033[34m"
+	ansiPurple = "\033[35m"
+)
+
+// useColor reports whether ANSI escapes should be written to f. Color is
+// suppressed when f is not a character device (a redirected file or a pipe)
+// and when NO_COLOR is set.
+func useColor(f *os.File) bool {
+	if os.Getenv("NO_COLOR") != "" {
+		return false
+	}
+	fi, err := f.Stat()
+	if err != nil {
+		return false
+	}
+	return fi.Mode()&os.ModeCharDevice != 0
+}
+
 type colorHandler struct {
 	w     io.Writer
 	level slog.Leveler
+	color bool
 }
 
 func (h *colorHandler) Enabled(_ context.Context, level slog.Level) bool {
 	return level >= h.level.Level()
 }
 
+// paint returns code only when this handler writes color.
+func (h *colorHandler) paint(code string) string {
+	if !h.color {
+		return ""
+	}
+	return code
+}
+
+func levelColor(l slog.Level) string {
+	switch {
+	case l >= slog.LevelError:
+		return ansiRed
+	case l >= slog.LevelWarn:
+		return ansiYellow
+	case l >= slog.LevelInfo:
+		return ansiGreen
+	case l >= slog.LevelDebug:
+		return ansiBlue
+	case l >= LevelTrace:
+		return ansiPurple
+	default:
+		return ansiReset
+	}
+}
+
 func (h *colorHandler) Handle(_ context.Context, r slog.Record) error {
 	buf := strings.Builder{}
 
-	buf.WriteString("\033[90m")
+	buf.WriteString(h.paint(ansiDim))
 	buf.WriteString(r.Time.Format("2006-01-02T15:04:05.000000Z07:00"))
-	buf.WriteString("\033[0m ")
+	buf.WriteString(h.paint(ansiReset))
+	buf.WriteString(" ")
 
-	var color string
-	switch {
-	case r.Level >= slog.LevelError:
-		color = "\033[31m"
-	case r.Level >= slog.LevelWarn:
-		color = "\033[33m"
-	case r.Level >= slog.LevelInfo:
-		color = "\033[32m"
-	case r.Level >= slog.LevelDebug:
-		color = "\033[34m"
-	case r.Level >= LevelTrace:
-		color = "\033[35m"
-	default:
-		color = "\033[0m"
-	}
-	buf.WriteString(color)
+	buf.WriteString(h.paint(levelColor(r.Level)))
 	fmt.Fprintf(&buf, "%5s", r.Level.String())
-	buf.WriteString("\033[0m")
+	buf.WriteString(h.paint(ansiReset))
 
 	buf.WriteString(" ")
 	buf.WriteString(r.Message)
 
 	r.Attrs(func(a slog.Attr) bool {
 		buf.WriteString(" ")
-		buf.WriteString("\033[90m")
+		buf.WriteString(h.paint(ansiDim))
 		buf.WriteString(a.Key)
 		buf.WriteString("=")
-		buf.WriteString("\033[0m")
+		buf.WriteString(h.paint(ansiReset))
 		buf.WriteString(a.Value.String())
 		return true
 	})
 
 	buf.WriteString("\n")
-	_, err := h.w.Write([]byte(buf.String()))
+	_, err := io.WriteString(h.w, buf.String())
 	return err
 }
 
