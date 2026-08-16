@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"slices"
 	"strings"
 )
 
@@ -140,6 +141,12 @@ type colorHandler struct {
 	w     io.Writer
 	level slog.Leveler
 	color bool
+
+	// groups are the groups open for attributes carried on a record; pre holds
+	// the attributes from WithAttrs, already rendered under the groups that
+	// were open when they were added.
+	groups []string
+	pre    string
 }
 
 func (h *colorHandler) Enabled(_ context.Context, level slog.Level) bool {
@@ -186,13 +193,9 @@ func (h *colorHandler) Handle(_ context.Context, r slog.Record) error {
 	buf.WriteString(" ")
 	buf.WriteString(r.Message)
 
+	buf.WriteString(h.pre)
 	r.Attrs(func(a slog.Attr) bool {
-		buf.WriteString(" ")
-		buf.WriteString(h.paint(ansiDim))
-		buf.WriteString(a.Key)
-		buf.WriteString("=")
-		buf.WriteString(h.paint(ansiReset))
-		buf.WriteString(a.Value.String())
+		h.writeAttr(&buf, h.groups, a)
 		return true
 	})
 
@@ -201,10 +204,61 @@ func (h *colorHandler) Handle(_ context.Context, r slog.Record) error {
 	return err
 }
 
+// writeAttr renders one attribute, qualifying its key with groups. Group
+// values are flattened into their members.
+func (h *colorHandler) writeAttr(buf *strings.Builder, groups []string, a slog.Attr) {
+	a.Value = a.Value.Resolve()
+	if a.Equal(slog.Attr{}) {
+		return
+	}
+
+	if a.Value.Kind() == slog.KindGroup {
+		nested := a.Value.Group()
+		if len(nested) == 0 {
+			return
+		}
+		inner := groups
+		if a.Key != "" {
+			inner = append(slices.Clone(groups), a.Key)
+		}
+		for _, na := range nested {
+			h.writeAttr(buf, inner, na)
+		}
+		return
+	}
+
+	buf.WriteString(" ")
+	buf.WriteString(h.paint(ansiDim))
+	for _, g := range groups {
+		buf.WriteString(g)
+		buf.WriteString(".")
+	}
+	buf.WriteString(a.Key)
+	buf.WriteString("=")
+	buf.WriteString(h.paint(ansiReset))
+	buf.WriteString(a.Value.String())
+}
+
 func (h *colorHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	return h
+	if len(attrs) == 0 {
+		return h
+	}
+	n := *h
+	buf := strings.Builder{}
+	buf.WriteString(h.pre)
+	for _, a := range attrs {
+		n.writeAttr(&buf, h.groups, a)
+	}
+	n.pre = buf.String()
+	return &n
 }
 
 func (h *colorHandler) WithGroup(name string) slog.Handler {
-	return h
+	if name == "" {
+		return h
+	}
+	n := *h
+	n.groups = append(slices.Clone(h.groups), name)
+	return &n
 }
+
