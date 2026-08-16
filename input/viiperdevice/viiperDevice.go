@@ -181,7 +181,6 @@ func (d *Device) Close() error {
 
 		if d.controlStream != nil {
 			err = d.controlStream.Close()
-			d.controlStream = nil
 		}
 
 		if d.closeFunc != nil {
