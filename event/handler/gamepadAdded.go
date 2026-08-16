@@ -38,7 +38,9 @@ func GamepadAdded(c *cmd.SISRContext) Operation[*sdl.GamepadDeviceEvent] {
 			dev.Lock()
 			defer dev.Unlock()
 
-			if dev.SteamVirtualGamepad != nil {
+			// A reclaimed device already carries the emulated device the game
+			// is holding open.
+			if dev.SteamVirtualGamepad != nil && dev.ViiperDevice == nil {
 				CreateViiperDevice(ctx, c, gpID, dev)
 			}
 

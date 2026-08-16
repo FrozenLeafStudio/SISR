@@ -19,6 +19,18 @@ type Device struct {
 	SteamVirtualGamepad *sdl.Gamepad
 	ViiperDevice        *viiperdevice.Device
 
+	// Identity survives a disconnect/reconnect cycle, unlike the SDL gamepad
+	// id. A returning controller is matched against it.
+	Identity string
+
+	// SteamHandle of the paired Steam virtual gamepad, so a virtual pad that
+	// returns before its controller can be matched back.
+	SteamHandle uint64
+
+	// EmulatedSignature is the vid:pid of the emulated device created for this
+	// controller. Guarded by the store mutex, not the device lock.
+	EmulatedSignature string
+
 	mtx sync.Mutex
 }
 

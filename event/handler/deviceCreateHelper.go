@@ -44,11 +44,8 @@ func CreateViiperDevice(ctx context.Context, c *cmd.SISRContext, gpID sdl.Gamepa
 	go func() {
 		select {
 		case vd := <-deviceChan:
-			ignoreNextCount := 1
-			if vd.Info().Type != "xbox360" {
-				ignoreNextCount = 2
-			}
-			c.DeviceStore.IgnoreNextDevice(ignoreNextCount)
+			info := vd.Info()
+			c.DeviceStore.RegisterEmulatedPad(dev, info.Vid, info.Pid)
 			dev.Lock()
 			dev.SetViiperDevice(vd)
 			dev.Unlock()
