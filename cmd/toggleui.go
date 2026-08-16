@@ -41,6 +41,21 @@ func ToggleUI(ctx context.Context, c *SISRContext) {
 
 		uiVisible := uiIsVisible(windowHidden, webviewVisible, hitTest, kbmEnabled)
 
+		// GetWindowHitTest costs a real syscall (X server round trip on
+		// Linux), so only pay for the extra post-decision calls below when
+		// debug logging would actually keep the result.
+		debugEnabled := slog.Default().Enabled(ctx, slog.LevelDebug)
+		if debugEnabled {
+			slog.Debug("Toggling UI",
+				"uiVisible", uiVisible,
+				"windowHidden", windowHidden,
+				"webviewVisible", webviewVisible,
+				"hitTest", hitTest,
+				"fullscreen", fullscreen,
+				"kbmEnabled", kbmEnabled,
+			)
+		}
+
 		if uiVisible {
 			if !kbmEnabled {
 				err := extras.SetCursorHitTest(w, false)
@@ -52,6 +67,9 @@ func ToggleUI(ctx context.Context, c *SISRContext) {
 				w.HideWindow()
 			}
 			wv.SetVisible(false)
+			if debugEnabled {
+				slog.Debug("Hid UI", "hitTest", extras.GetWindowHitTest(w))
+			}
 			return false
 		} else {
 			w.ShowWindow()
@@ -69,6 +87,9 @@ func ToggleUI(ctx context.Context, c *SISRContext) {
 			err := extras.SetCursorHitTest(w, true)
 			if err != nil {
 				slog.Error("Failed setting window cursor hittest", "error", err)
+			}
+			if debugEnabled {
+				slog.Debug("Showed UI", "hitTest", extras.GetWindowHitTest(w))
 			}
 			return true
 		}

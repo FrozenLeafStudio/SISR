@@ -92,6 +92,12 @@ func UpdateWindowExStyleBits(hwnd uintptr, setBits uintptr, clearBits uintptr) e
 	return ApplyFrameChanged(hwnd)
 }
 
+// GetWindowExStyle returns the raw extended window style, which is useful when
+// logging why a window does or does not receive mouse input.
+func GetWindowExStyle(hwnd uintptr) (uintptr, error) {
+	return getWindowLongPtr(hwnd, GWLExStyle)
+}
+
 func HasWindowExStyleBits(hwnd uintptr, bits uintptr) (bool, error) {
 	exStyle, err := getWindowLongPtr(hwnd, GWLExStyle)
 	if err != nil {
